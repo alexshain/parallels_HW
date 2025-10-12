@@ -39,3 +39,13 @@
 
 # debug information files
 *.dwo
+
+# other
+build/
+*/build/
+*/*/build/
+
+.DS_Store
+*.DS_Store
+*/.DS_Store
+*/*/.DS_Store
