@@ -2,7 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <omp.h>
-#include "GaussSolver.h"
+#include "JacobiSolver.h"
 
 std::vector<std::vector<double>> createKnownSolutionMatrix(int n) {
     std::vector<std::vector<double>> A(n, std::vector<double>(n, 0.0));
@@ -35,7 +35,7 @@ int main() {
     auto A = createKnownSolutionMatrix(n);
     auto b = createKnownSolutionVector(n);
     
-    GaussSolver solver(A, b);
+    JacobiSolver solver(A, b);
     
     if (solver.solve(1e-6, 1000)) {
         std::cout << "Решение найдено" << std::endl;

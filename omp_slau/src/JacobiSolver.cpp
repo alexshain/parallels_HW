@@ -1,15 +1,15 @@
-#include "GaussSolver.h"
+#include "JacobiSolver.h"
 #include <iostream>
 #include <cmath>
 #include <omp.h>
 
-GaussSolver::GaussSolver(const std::vector<std::vector<double>>& _A, const std::vector<double>& _b)
+JacobiSolver::JacobiSolver(const std::vector<std::vector<double>>& _A, const std::vector<double>& _b)
     : A(_A), b(_b) {
     n = b.size();
     x.resize(n, 0.0);
 }
 
-bool GaussSolver::solve(double tolerance, int max_iterations) {
+bool JacobiSolver::solve(double tolerance, int max_iterations) {
     double start_time = omp_get_wtime();
     std::vector<double> x_new(n, 0.0);
     int iteration = 0;
@@ -36,7 +36,7 @@ bool GaussSolver::solve(double tolerance, int max_iterations) {
 
         iteration++;
 
-        if(iteration > max_iterations && error < tolerance) {
+        if(iteration > max_iterations || error < tolerance) {
             break;
         }
     }
@@ -48,11 +48,11 @@ bool GaussSolver::solve(double tolerance, int max_iterations) {
     return (error <= tolerance);
 }
 
-const std::vector<double>& GaussSolver::getSolution() const {
+const std::vector<double>& JacobiSolver::getSolution() const {
     return x;
 }
 
-void GaussSolver::printSolution() const {
+void JacobiSolver::printSolution() const {
     std::cout << "Решение СЛАУ:" << std::endl;
     for (int i = 0; i < n; i++) {
         std::cout << "x[" << i << "] = " << x[i] << std::endl;

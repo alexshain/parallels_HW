@@ -4,7 +4,7 @@
 #include <omp.h>
 
 
-class GaussSolver {
+class JacobiSolver {
     private:
         std::vector<std::vector<double>> A;  
         std::vector<double> b;               
@@ -12,7 +12,7 @@ class GaussSolver {
         int n;                             
     
     public:
-        GaussSolver(const std::vector<std::vector<double>>& _A, const std::vector<double>& _b);
+        JacobiSolver(const std::vector<std::vector<double>>& _A, const std::vector<double>& _b);
         bool solve(double tolerance, int max_iterations);
         const std::vector<double>& getSolution() const;
         void printSolution() const;
