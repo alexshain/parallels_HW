@@ -72,15 +72,10 @@ bool JacobiSolver::solve(double tolerance, int max_iterations) {
     std::vector<double> h_error(n);
 
     while (iteration < max_iterations && global_error > tolerance) {
-        double* temp = d_x_old;
-        d_x_old = d_x;
-        d_x = d_x_new; 
-        d_x_new = temp;
-
-        jacobiKernel<<<num_blocks, block_size>>>(d_A, d_b, d_x_old, d_x_new, n);
+        jacobiKernel<<<num_blocks, block_size>>>(d_A, d_b, d_x, d_x_new, n);
         cudaDeviceSynchronize();
 
-        errorKernel<<<num_blocks, block_size>>>(d_x_new, d_x_old, d_error, n);
+        errorKernel<<<num_blocks, block_size>>>(d_x_new, d_x, d_error, n);
         cudaDeviceSynchronize();
 
         cudaMemcpy(h_error.data(), d_error, n * sizeof(double), cudaMemcpyDeviceToHost);
@@ -92,10 +87,6 @@ bool JacobiSolver::solve(double tolerance, int max_iterations) {
         global_error = sqrt(global_error);
 
         iteration++;
-        
-        if (iteration % 100 == 0) {
-            std::cout << "Итерация " << iteration << ", ошибка: " << global_error << std::endl;
-        }
     }
     
     cudaMemcpy(x.data(), d_x, n * sizeof(double), cudaMemcpyDeviceToHost);
