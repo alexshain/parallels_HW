@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     auto b = createKnownSolutionVector(n);
     
     JacobiSolver solver(A, b);
-    bool success = solver.solve(1e-3, 10000, rank, size);
+    bool success = solver.solve(1e-6, 10000, rank, size);
     
     if(rank == 0) {
         if (success) {

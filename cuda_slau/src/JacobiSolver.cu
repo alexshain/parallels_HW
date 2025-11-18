@@ -45,7 +45,6 @@ void JacobiSolver::initializeCUDA() {
     cudaMalloc(&d_b, n * sizeof(double));
     cudaMalloc(&d_x, n * sizeof(double));
     cudaMalloc(&d_x_new, n * sizeof(double));
-    cudaMalloc(&d_x_old, n * sizeof(double));
     
     cudaMemcpy(d_A, A.data(), n * n * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b.data(), n * sizeof(double), cudaMemcpyHostToDevice);
@@ -57,7 +56,6 @@ void JacobiSolver::cleanupCUDA() {
     if (d_b) cudaFree(d_b);
     if (d_x) cudaFree(d_x);
     if (d_x_new) cudaFree(d_x_new);
-    if (d_x_old) cudaFree(d_x_old);
 }
 
 bool JacobiSolver::solve(double tolerance, int max_iterations) {
@@ -66,7 +64,7 @@ bool JacobiSolver::solve(double tolerance, int max_iterations) {
     int iteration = 0;
     double global_error = tolerance + 1.0;
 
-    int block_size = 256;
+    int block_size = 32;
     int num_blocks = (n + block_size - 1) / block_size;
 
     double* d_error;
