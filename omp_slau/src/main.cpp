@@ -37,7 +37,7 @@ int main() {
     
     JacobiSolver solver(A, b);
     
-    if (solver.solve(1e-6, 1000)) {
+    if (solver.solve(1e-6, 10000)) {
         std::cout << "Решение найдено" << std::endl;
         
         auto solution = solver.getSolution();
