@@ -16,7 +16,7 @@ private:
     Matrix solution_;
 
 public:
-    MatrixMultiplier() = default;
+    MatrixMultiplier();
     bool multiply(int rank, int size, const Matrix& _A, const Matrix& _B);
     const Matrix& getSolution() const;
     void printSolution() const;
