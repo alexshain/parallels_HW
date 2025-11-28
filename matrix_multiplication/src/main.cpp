@@ -18,17 +18,17 @@ int main(int argc, char** argv) {
     int rowsA = 10;
     int colsA = 20;
     int rowsB = 20;
-    int colsB = 15;
+    int colsB = 10;
     
-    auto A = createOnesMatrix(rowsA, colsB);
-    auto B = createOnesMatrix(rowsA, colsB);
+    auto A = createOnesMatrix(rowsA, colsA);
+    auto B = createOnesMatrix(rowsB, colsB);
     
-    MatrixMultiplier multiplier();
+    MatrixMultiplier multiplier;
     bool success = multiplier.multiply(rank, size, A, B);
     
     if(rank == 0) {
         if (success) {
-            auto solution = multiplier.printSolution();
+            multiplier.printSolution();
         } else {
             std::cout << "Что то не так!" << std::endl;
         }
