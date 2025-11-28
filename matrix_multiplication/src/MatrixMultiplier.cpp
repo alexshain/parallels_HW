@@ -84,6 +84,9 @@ bool MatrixMultiplier::multiply(int rank, int size, const Matrix& _A, const Matr
     }
     MPI_Bcast(B_block.data(), b_rows * b_cols, MPI_DOUBLE, 0, comm_col);
 
+        //for(int i = 0; i < A_block.size(); i++)
+          //  std::cout << B_block[i] << std::endl;
+
     for (int i = 0; i < a_rows; i++) {
         for (int j = 0; j < b_cols; j++) {
             for (int k = 0; k < a_cols; k++) {
@@ -91,6 +94,7 @@ bool MatrixMultiplier::multiply(int rank, int size, const Matrix& _A, const Matr
             }
         }
     }
+
 
     if (rank == 0) {
         solution_ = Matrix(_A.rows, _B.columns, 0.0);
@@ -110,13 +114,14 @@ bool MatrixMultiplier::multiply(int rank, int size, const Matrix& _A, const Matr
             int coords_proc[2] = {i, j};
             MPI_Cart_rank(comm2d, coords_proc, &process_rank);
             displs[process_rank] = i * c_rows * _B.columns + j * c_cols;
+            //std::cout << i * c_rows * _B.columns + j * c_cols << std::endl;
         }
     }
 
-    MPI_Gatherv(C_block.data(), 1, resized_block_type,
+    MPI_Gatherv(C_block.data(), c_cols * c_rows, MPI_DOUBLE,
                solution_.data.data(), recvcounts.data(), displs.data(), resized_block_type,
                0, comm2d);
-
+    
     double end_time = MPI_Wtime();
     if (rank == 0) {
         std::cout << "Время выполнения: " << end_time - start_time << " секунд" << std::endl;
