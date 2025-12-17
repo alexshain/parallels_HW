@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int n = 1000; 
+    int n = 1024; 
     
     auto A = createKnownSolutionMatrix(n);
     auto b = createKnownSolutionVector(n);

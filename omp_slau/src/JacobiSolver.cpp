@@ -39,12 +39,13 @@ bool JacobiSolver::solve(double tolerance, int max_iterations) {
         if(iteration > max_iterations || error < tolerance) {
             break;
         }
-        //std::cout << "Iteration: " << iteration << std::endl;
+        
     }
     
     double end_time = omp_get_wtime();
     
     std::cout << "Время: " << end_time - start_time << " секунд" << std::endl;
+    std::cout << "Iterations: " << iteration << std::endl;
     
 
     return (error <= tolerance);

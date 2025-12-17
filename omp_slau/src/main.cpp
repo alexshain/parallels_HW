@@ -30,7 +30,7 @@ std::vector<double> createKnownSolutionVector(int n) {
 }
 
 int main() {
-    int n = 1000; 
+    int n = 1024; 
     
     auto A = createKnownSolutionMatrix(n);
     auto b = createKnownSolutionVector(n);
