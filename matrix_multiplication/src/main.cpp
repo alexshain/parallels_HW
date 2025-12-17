@@ -15,10 +15,10 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); // возвращает номер данного процесса в коммуникаторе
     MPI_Comm_size(MPI_COMM_WORLD, &size); // возвращает количество процессов в коммуникаторе
 
-    int rowsA = 10;
-    int colsA = 20;
-    int rowsB = 20;
-    int colsB = 10;
+    int rowsA = 1024;
+    int colsA = 1024;
+    int rowsB = 1024;
+    int colsB = 1024;
     
     auto A = createOnesMatrix(rowsA, colsA);
     auto B = createOnesMatrix(rowsB, colsB);
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     
     if(rank == 0) {
         if (success) {
-            multiplier.printSolution();
+            //multiplier.printSolution();
         } else {
             std::cout << "Что то не так!" << std::endl;
         }
