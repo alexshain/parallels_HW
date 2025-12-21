@@ -33,9 +33,9 @@
 
 Вычисление проводилось на кластере ИТ СО РАН "Каскад" на видеокарте NVIDIA A100.
 
-Результаты - (время, ускорение, эффективность)
+Результаты - (время, ускорение, эффективность) - https://docs.google.com/spreadsheets/d/1W31IW7T3Pzd-LqoeukDTXBTbZXZnTd2NoBF0d5Day3s/edit?gid=823471207#gid=823471207
 
-Итоги: 
+Итоги: - ускорение падает с ростом blockSize
 
 # MATRIX_MULTIPLICATION
 В рамках данного задания проводилось вычисление произведения матриц в MPI на 2D решетке (https://ssd.sscc.ru/sites/default/files/content/attach/343/parallel_lab3_2020.pdf)
