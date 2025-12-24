@@ -1,154 +1,250 @@
-#include <mpi.h>						
-#include <iostream>						
-#include <queue>						
-#include <pthread.h>						
-						
-struct Job{						
-	int jobSimulationTime;					
-	Job(int jst):jobSimulationTime(jst){}					
-	Job():jobSimulationTime(-1){}					
-	process()					
-	{					
-		sleep(jobSimulationTime);				
-	}					
-};						
-						
-std::queue<Job> jobQueue;						
-						
-bool canBeMoreWork = true;						
-pthread_mutex_t mutex;						
-pthread_mutex_t mutex_cond;						
-pthread_cond_t c_jobAdded, c_needToFetch;						
-bool jobAdded, needToFetch;						
-						
-void* worker(void* args)						
-{						
-	while(canBeMoreWork)					
-	{					
-		Job job;				
-		pthread_mutex_lock(&mutex);				
-		if(!jobQueue.empty())				
-		{				
-			job = jobQueue.front();			
-			jobQueue.pop();			
-		} else {				
-			pthread_cond_signal(&c_needToFetch);			
-		}				
-		pthread_mutex_unlock(&mutex);				
-		job.process();				
-	}					
-}						
-						
-void* fetcher(void* args)						
-{						
-/*						
-	pthread_mutex_lock(&mutex_cond);					
-	if(!needToFetch)					
-		pthread_cond_wait(&c_needToFetch, &mutex_cond);				
-	//проанализировать ситуацию, сохранить статус в локальные переменные					
-	pthread_mutex_unlock(&mutex_cond);					
-	//обработать ситуацию					
-*/						
-	int group_size = ((int*)args)[0];					
-	int my_rank = ((int*)args)[1];					
-	std::vector<bool> finished(group_size, false);					
-	int finishedCount = 1; //because we will not request jobs from ourselves					
-	int request = -1;					
-	int response = -1;					
-	while(finshedCount<group_size){					
-		for(int r = 0; r<group_size; r++)				
-		{				
-			if(r != my_rank && !finished[r]){			
-				MPI_Send(&request, 1, MPI_INT, r, 0, MPI_COMM_WORLD);		
-				MPI_Recv(&response, 1, MPI_INT, r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);		
-				//if got job		
-				if(response != -1){		
-					Job job(response);	
-					pthread_mutex_lock(&mutex);	
-					job = jobQueue.push(job);	
-					pthread_mutex_unlock(&mutex);	
-				}		
-				else {		
-					finished[r] = true;	
-					finishedCount ++;	
-				}		
-						
-			}			
-						
-		}				
-						
-	}					
-	//another way to stop responder					
-	//int mayLeave = -2;					
-	//MPI_Send(&mayLeave, 1, MPI_INT, my_rank, 0, MPI_COMM_WORLD);					
-	return NULL;					
-}						
-						
-void* responder(void* args)						
-{						
-	int group_size = ((int*)args)[0];					
-	int my_rank = ((int*)args)[1];					
-	int rejectedCount = 1;					
-						
-	while(rejectedCount < group_size)					
-	{					
-		int request = -100;				
-		MPI_Status st;				
-		MPI_Recv(&request, 1, MPI_INT, MPI_ANY_SOURCE, 0, &st);				
-//		if(request == -2)				
-//		{				
-//			someOneCanAsk = false;			
-//		} else {				
-		Job job;				
-		pthread_mutex_lock(&mutex);				
-		if(!jobQueue.empty())				
-		{				
-			job = jobQueue.front();			
-			jobQueue.pop();			
-			response = job.jobSimulationTime;			
-		}				
-		else {				
-			response = -1;			
-			rejectedCount ++;			
-		}				
-						
-		pthread_mutex_unlock(&mutex);				
-//		}				
-		MPI_Send(&response, 1, MPI_INT, st.MPI_SOURCE, 0, MPI_COMM_WORLD);				
-	}					
-}						
-						
-int main(int argc, char** argv)						
-{						
-	int required = MPI_THREAD_MULTIPLE;					
-	int provided = -1;					
-	MPI_Init_thread(&argc, &argv, required, &provided);					
-	MPI_Comm_size(MPI_COMM_WORLD, &size);					
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);					
-						
-	if(required != provided)					
-	{					
-		std::cerr << "Your MPI implementation does not support MPI_THREAD_MULTIPLE.\nCan not proceed." << endl;				
-		abort();				
-	}					
-						
-	pthread_t d_worker, d_fetcher, d_responder;					
-						
-	pthread_attr_t attr;					
-	pthread_attr_init(&attr);					
-						
-	pthread_mutex_init(&mutex);					
-	pthread_cond_init(&c_jobAdded);					
-	pthread_cond_init(&c_needToFetch);					
-						
-	pthread_create(&d_worker, &attr, worker, NULL);					
-	int args[] = {size, rank};					
-	pthread_create(&d_fetcher, &attr, fetcher, args);					
-	pthread_create(&d_responder, &attr, responder, args);					
-						
-	pthread_join(d_worker, nullptr);					
-	pthread_join(d_fetcher, nullptr);					
-	pthread_join(d_responder, nullptr);					
-	std::cout << "All done" << endl;					
-	return 0;					
-}						
+#include <mpi.h>
+#include <iostream>
+#include <queue>
+#include <pthread.h>
+#include <vector>
+#include <unistd.h>
+#include <atomic>
+#include <algorithm>
+#include <chrono>
+#include <thread>
+#include <mutex>
+#include <sstream>
+
+std::mutex logMutex;
+
+void log_message(int rank, const std::string& msg) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    std::cout << "[Rank " << rank << "] " << msg << std::endl;
+}
+
+struct Job {
+    int jobSimulationTime;
+    Job(int jst) : jobSimulationTime(jst) {}
+    Job() : jobSimulationTime(-1) {}
+    void process() {
+        if (jobSimulationTime > 0) {
+            sleep(jobSimulationTime);
+        }
+    }
+};
+
+// === Shared state ===
+std::queue<Job> jobQueue;
+pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// === НОВОЕ: синхронизация между worker и fetcher ===
+pthread_mutex_t fetcherMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t workLowCond = PTHREAD_COND_INITIALIZER;
+std::atomic<bool> fetcherActive{false}; // true = ищет работу
+
+std::atomic<bool> stopRequested{false};
+std::atomic<bool> globalIdle{false};
+
+int worldSize;
+int worldRank;
+
+// === Worker ===
+void* worker(void* arg) {
+    int jobCount = 0;
+    while (!stopRequested.load()) {
+        Job job;
+        bool hasJob = false;
+        pthread_mutex_lock(&queueMutex);
+        if (!jobQueue.empty()) {
+            job = jobQueue.front();
+            jobQueue.pop();
+            hasJob = true;
+        }
+        pthread_mutex_unlock(&queueMutex);
+
+        if (hasJob) {
+            jobCount++;
+            log_message(worldRank, "Worker: processing job #" + std::to_string(jobCount) + " (sleep=" + std::to_string(job.jobSimulationTime) + ")");
+
+            // Проверяем, не стало ли задач мало
+            pthread_mutex_lock(&queueMutex);
+            bool needMore = (jobQueue.size() <= 1); // порог: ≤1 задача
+            pthread_mutex_unlock(&queueMutex);
+
+            if (needMore && !fetcherActive.load()) {
+                pthread_mutex_lock(&fetcherMutex);
+                fetcherActive = true;
+                pthread_cond_signal(&workLowCond);
+                pthread_mutex_unlock(&fetcherMutex);
+            }
+
+            job.process();
+        } else {
+            // Если вообще нет задач — активируем fetcher немедленно
+            pthread_mutex_lock(&fetcherMutex);
+            if (!fetcherActive.load()) {
+                fetcherActive = true;
+                pthread_cond_signal(&workLowCond);
+            }
+            pthread_mutex_unlock(&fetcherMutex);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+    log_message(worldRank, "Worker: stopping.");
+    return nullptr;
+}
+
+// === Responder ===
+void* responder(void* arg) {
+    log_message(worldRank, "Responder: started.");
+    int recvCount = 0;
+    while (!globalIdle.load()) {
+        int request;
+        MPI_Status status;
+        int flag;
+
+        MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &flag, &status);
+        if (flag) {
+            int src = status.MPI_SOURCE;
+            MPI_Recv(&request, 1, MPI_INT, src, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            recvCount++;
+
+            int response = -1;
+            bool hadJob = false;
+            pthread_mutex_lock(&queueMutex);
+            if (!jobQueue.empty()) {
+                Job j = jobQueue.front();
+                jobQueue.pop();
+                response = j.jobSimulationTime;
+                hadJob = true;
+            }
+            pthread_mutex_unlock(&queueMutex);
+
+            MPI_Send(&response, 1, MPI_INT, src, 0, MPI_COMM_WORLD);
+            log_message(worldRank, "Responder: handled request #" + std::to_string(recvCount) + " from rank " + std::to_string(src) + 
+                        " → sent " + (hadJob ? "job(" + std::to_string(response) + ")" : "NO_JOB"));
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+    log_message(worldRank, "Responder: stopping.");
+    return nullptr;
+}
+
+// === Fetcher (теперь ленивый) ===
+void* fetcher(void* arg) {
+    log_message(worldRank, "Fetcher: started (lazy mode).");
+    int allgatherCount = 0;
+
+    while (!globalIdle.load()) {
+        // Ждём сигнала от worker
+        pthread_mutex_lock(&fetcherMutex);
+        while (!fetcherActive.load() && !globalIdle.load()) {
+            pthread_cond_wait(&workLowCond, &fetcherMutex);
+        }
+        if (globalIdle.load()) {
+            pthread_mutex_unlock(&fetcherMutex);
+            break;
+        }
+        pthread_mutex_unlock(&fetcherMutex);
+
+        log_message(worldRank, "Fetcher: activated — seeking work...");
+
+        bool gotWork = false;
+        if (worldSize > 1) {
+            // Опрашиваем до тех пор, пока не получим работу или не опросим всех
+            for (int r = 0; r < worldSize && !gotWork; ++r) {
+                if (r == worldRank) continue;
+                int request = 0;
+                int response = -1;
+                MPI_Send(&request, 1, MPI_INT, r, 0, MPI_COMM_WORLD);
+                MPI_Recv(&response, 1, MPI_INT, r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                if (response > 0) {
+                    pthread_mutex_lock(&queueMutex);
+                    jobQueue.push(Job(response));
+                    pthread_mutex_unlock(&queueMutex);
+                    gotWork = true;
+                    log_message(worldRank, "Fetcher: got job(" + std::to_string(response) + ") from rank " + std::to_string(r));
+                } else {
+                    log_message(worldRank, "Fetcher: rank " + std::to_string(r) + " has no job");
+                }
+            }
+        }
+
+        // После попытки — деактивируем себя
+        fetcherActive = false;
+
+        // Всё равно делаем Allgather, чтобы проверить глобальное завершение
+        int localIdle = (jobQueue.empty()) ? 1 : 0;
+        std::vector<int> allIdle(worldSize);
+        MPI_Allgather(&localIdle, 1, MPI_INT, allIdle.data(), 1, MPI_INT, MPI_COMM_WORLD);
+        allgatherCount++;
+
+        bool nowIdle = std::all_of(allIdle.begin(), allIdle.end(), [](int x) { return x == 1; });
+        log_message(worldRank, "Allgather #" + std::to_string(allgatherCount) + ": localIdle=" + std::to_string(localIdle) + 
+                    ", globalIdle=" + (nowIdle ? "YES" : "NO"));
+
+        if (nowIdle) {
+            globalIdle.store(true);
+            stopRequested.store(true);
+            log_message(worldRank, "Fetcher: global idle detected → signaling stop.");
+            break;
+        }
+    }
+    log_message(worldRank, "Fetcher: stopping.");
+    return nullptr;
+}
+
+// === Main ===
+int main(int argc, char** argv) {
+    int required = MPI_THREAD_MULTIPLE;
+    int provided;
+    MPI_Init_thread(&argc, &argv, required, &provided);
+
+    double t0 = MPI_Wtime();
+
+    if (provided < required) {
+        std::cerr << "MPI_THREAD_MULTIPLE not supported!\n";
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
+
+    // Initial work
+    if (worldRank == 0) {
+        for (int i = 0; i < 5; ++i) {
+            pthread_mutex_lock(&queueMutex);
+            jobQueue.push(Job(2));
+            pthread_mutex_unlock(&queueMutex);
+        }
+    }
+
+    log_message(worldRank, "Starting threads...");
+
+    // === Инициализация новых примитивов ===
+    pthread_mutex_init(&fetcherMutex, nullptr);
+    pthread_cond_init(&workLowCond, nullptr);
+
+    pthread_t t_worker, t_fetcher, t_responder;
+    pthread_create(&t_worker, nullptr, worker, nullptr);
+    pthread_create(&t_fetcher, nullptr, fetcher, nullptr);
+    pthread_create(&t_responder, nullptr, responder, nullptr);
+
+    pthread_join(t_worker, nullptr);
+    pthread_join(t_fetcher, nullptr);
+    pthread_join(t_responder, nullptr);
+
+    log_message(worldRank, "All threads joined.");
+
+    // === Уничтожение ===
+    pthread_mutex_destroy(&fetcherMutex);
+    pthread_cond_destroy(&workLowCond);
+
+    double t1 = MPI_Wtime();
+
+    if (worldRank == 0) {
+        std::cout << "\n[SUMMARY] All work completed system-wide.\n" << std::endl;
+    }
+
+    if (worldRank == 0) std::cout << "Total time: " << (t1 - t0) << " sec\n";
+
+    MPI_Finalize();
+    return 0;
+}

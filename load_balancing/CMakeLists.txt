@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(MPI REQUIRED)
+find_package(Threads REQUIRED)
 
 add_executable(LOAD_BALANCING 
     main.cpp
@@ -13,4 +14,8 @@ add_executable(LOAD_BALANCING
 
 target_include_directories(LOAD_BALANCING PUBLIC include)
 
-target_link_libraries(LOAD_BALANCING PUBLIC MPI::MPI_CXX)
+target_link_libraries(LOAD_BALANCING 
+    PUBLIC 
+        MPI::MPI_CXX 
+        Threads::Threads  # ← это автоматически добавит -pthread (или эквивалент)
+)
